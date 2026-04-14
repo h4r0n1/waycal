@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>waycal — a tiny calendar popup for Waybar</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A tiny calendar popup for Waybar. Click an icon in the bar, a month view drops down, arrow keys navigate. Works on any wlr-layer-shell compositor.">
+<meta name="theme-color" content="#14191d">
+<meta property="og:title" content="waycal">
+<meta property="og:description" content="A tiny calendar popup for Waybar.">
+<meta property="og:image" content="https://waycal.dev/screenshot.png">
+<meta property="og:url" content="https://waycal.dev">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%231a2125'/%3E%3Crect x='20' y='28' width='60' height='50' rx='6' fill='none' stroke='%238FBC8F' stroke-width='6'/%3E%3Cline x1='20' y1='44' x2='80' y2='44' stroke='%238FBC8F' stroke-width='6'/%3E%3Cline x1='32' y1='22' x2='32' y2='34' stroke='%238FBC8F' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='68' y1='22' x2='68' y2='34' stroke='%238FBC8F' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #14191d;
+  --surface: #1a2125;
+  --surface-soft: #1f272c;
+  --text: #c9d1d9;
+  --accent: #8FBC8F;
+  --muted: #6a7a71;
+  --border: rgba(143, 188, 143, 0.18);
+  --radius: 16px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Cascadia Code", "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas, monospace;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(143, 188, 143, 0.06), transparent),
+    var(--bg);
+}
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 5rem 1.5rem 3rem;
+  flex: 1;
+}
+@media (max-width: 640px) {
+  main { padding: 3rem 1rem 2rem; }
+}
+.hero { text-align: center; margin-bottom: 4.5rem; }
+.hero h1 {
+  font-size: clamp(3rem, 10vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--accent);
+  margin-bottom: 0.3rem;
+  line-height: 1;
+}
+.hero .tagline {
+  font-size: 1rem;
+  color: var(--muted);
+  margin-bottom: 3rem;
+}
+.calendar {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: inline-block;
+  min-width: 280px;
+  text-align: center;
+  box-shadow:
+    0 1px 0 rgba(143, 188, 143, 0.04) inset,
+    0 30px 80px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(143, 188, 143, 0.05);
+  font-size: 0.9rem;
+}
+.cal-header {
+  font-weight: 700;
+  font-size: 1rem;
+  padding-bottom: 0.55rem;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-weekday {
+  color: var(--accent);
+  font-weight: 700;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+}
+.cal-day {
+  padding: 5px 6px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  min-width: 26px;
+}
+.cal-day.dim { opacity: 0.3; }
+.cal-day.today {
+  background: var(--accent);
+  color: var(--surface);
+  font-weight: 700;
+}
+.cal-footer {
+  color: var(--muted);
+  font-size: 0.65rem;
+  padding-top: 0.6rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  letter-spacing: 0.02em;
+}
+.hero .subtagline {
+  margin-top: 2.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.6;
+}
+section { margin-bottom: 3.5rem; }
+h2 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  margin-bottom: 1rem;
+  padding-left: 0.5rem;
+  font-weight: 600;
+}
+.commands { display: flex; flex-direction: column; gap: 0.6rem; }
+.cmd {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 0.95rem 1.25rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  user-select: none;
+  position: relative;
+}
+.cmd:hover { border-color: var(--border); background: var(--surface-soft); }
+.cmd .label {
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  min-width: 8rem;
+  flex-shrink: 0;
+}
+.cmd code {
+  font-size: 0.9rem;
+  color: var(--text);
+  flex: 1;
+}
+.cmd .copy-hint {
+  font-size: 0.7rem;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.cmd:hover .copy-hint { opacity: 1; }
+.cmd.copied .copy-hint {
+  opacity: 1;
+  color: var(--accent);
+}
+@media (max-width: 640px) {
+  .cmd { flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+  .cmd .label { min-width: 0; }
+}
+dl.keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem 2rem;
+  background: var(--surface);
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius);
+}
+dl.keys dt { color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+dl.keys dd { color: var(--muted); font-size: 0.85rem; }
+.links {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.links a {
+  color: var(--text);
+  text-decoration: none;
+  padding: 0.7rem 1.25rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.85rem;
+  border: 1px solid transparent;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.links a:hover {
+  color: var(--accent);
+  border-color: var(--border);
+  background: var(--surface-soft);
+}
+footer {
+  text-align: center;
+  color: var(--muted);
+  padding: 2rem 1rem 2.5rem;
+  font-size: 0.75rem;
+}
+footer a { color: var(--muted); text-decoration: underline dotted; }
+footer a:hover { color: var(--accent); }
+::selection { background: var(--accent); color: var(--surface); }
+</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <h1>waycal</h1>
+    <p class="tagline">a tiny calendar popup for waybar</p>
+    <div class="calendar" id="calendar"></div>
+    <p class="subtagline">
+      click a calendar icon in your bar, the month drops down, arrow keys navigate, escape closes. that's it.
+    </p>
+  </section>
+
+  <section>
+    <h2>Install</h2>
+    <div class="commands">
+      <div class="cmd" data-copy="yay -S waycal">
+        <span class="label">Arch · Omarchy</span>
+        <code>yay -S waycal</code>
+        <span class="copy-hint">click to copy</span>
+      </div>
+      <div class="cmd" data-copy="cargo install waycal">
+        <span class="label">Any distro w/ Rust</span>
+        <code>cargo install waycal</code>
+        <span class="copy-hint">click to copy</span>
+      </div>
+      <div class="cmd" data-copy="curl -L https://github.com/forrestknight/waycal/releases/latest/download/waycal-0.1.0-x86_64-linux.tar.gz | tar -xz">
+        <span class="label">Prebuilt binary</span>
+        <code>curl … | tar -xz</code>
+        <span class="copy-hint">click to copy</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Controls</h2>
+    <dl class="keys">
+      <dt>← →</dt><dd>previous / next month</dd>
+      <dt>↑ ↓</dt><dd>previous / next year</dd>
+      <dt>⏎</dt><dd>jump back to today</dd>
+      <dt>⎋</dt><dd>close</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Links</h2>
+    <nav class="links">
+      <a href="https://github.com/forrestknight/waycal">GitHub</a>
+      <a href="https://crates.io/crates/waycal">crates.io</a>
+      <a href="https://aur.archlinux.org/packages/waycal">AUR</a>
+      <a href="https://github.com/forrestknight/waycal/releases">Releases</a>
+    </nav>
+  </section>
+</main>
+<footer>
+  made by <a href="https://github.com/forrestknight">forrest knight</a> · MIT licensed · <a href="https://github.com/forrestknight/waycal/tree/master/site">source of this page</a>
+</footer>
+<script>
+(function () {
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const weekdays = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const today = now.getDate();
+  const firstDow = new Date(y, m, 1).getDay();
+  const lead = (firstDow + 6) % 7;
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const prevDays = new Date(y, m, 0).getDate();
+  const el = document.getElementById("calendar");
+  if (!el) return;
+  let h = '<div class="cal-header">' + months[m] + ' ' + y + '</div>';
+  h += '<div class="cal-grid">';
+  weekdays.forEach(function (w) { h += '<div class="cal-weekday">' + w + '</div>'; });
+  for (let i = 0; i < lead; i++) {
+    const d = prevDays - lead + 1 + i;
+    h += '<div class="cal-day dim">' + d + '</div>';
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cls = d === today ? 'cal-day today' : 'cal-day';
+    h += '<div class="' + cls + '">' + d + '</div>';
+  }
+  const total = lead + daysInMonth;
+  const trailing = (7 - (total % 7)) % 7;
+  for (let i = 1; i <= trailing; i++) {
+    h += '<div class="cal-day dim">' + i + '</div>';
+  }
+  h += '</div>';
+  h += '<div class="cal-footer">← → month   ↑ ↓ year   ⏎ today</div>';
+  el.innerHTML = h;
+})();
+
+document.querySelectorAll(".cmd").forEach(function (cmd) {
+  cmd.addEventListener("click", function () {
+    const text = cmd.dataset.copy;
+    if (!text) return;
+    const done = function () {
+      cmd.classList.add("copied");
+      const hint = cmd.querySelector(".copy-hint");
+      if (hint) hint.textContent = "copied";
+      setTimeout(function () {
+        cmd.classList.remove("copied");
+        if (hint) hint.textContent = "click to copy";
+      }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () {
+        fallbackCopy(text); done();
+      });
+    } else {
+      fallbackCopy(text); done();
+    }
+  });
+});
+function fallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+</script>
+</body>
+</html>
