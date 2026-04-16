@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use chrono::{Datelike, Local, NaiveDate};
 use gtk4::gdk;
+use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
@@ -143,15 +144,37 @@ fn main() -> glib::ExitCode {
     app.run()
 }
 
+fn user_css_path() -> Option<PathBuf> {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    Some(base.join("waycal").join("style.css"))
+}
+
+fn apply_css(provider: &gtk4::CssProvider) {
+    match user_css_path().filter(|p| p.exists()) {
+        Some(path) => provider.load_from_path(&path),
+        None => provider.load_from_string(CSS),
+    }
+}
+
 fn load_css() {
     let provider = gtk4::CssProvider::new();
-    provider.load_from_string(CSS);
+    apply_css(&provider);
     if let Some(display) = gdk::Display::default() {
         gtk4::style_context_add_provider_for_display(
             &display,
             &provider,
             gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
+    }
+    // Watch ~/.config/waycal/style.css for live reloading
+    if let Some(path) = user_css_path() {
+        let file = gio::File::for_path(&path);
+        if let Ok(monitor) = file.monitor_file(gio::FileMonitorFlags::empty(), None::<&gio::Cancellable>) {
+            monitor.connect_changed(move |_, _, _, _| apply_css(&provider));
+            std::mem::forget(monitor);
+        }
     }
 }
 
